@@ -1,0 +1,26 @@
+{
+  "name": "my-tailwind-express",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev:css": "tailwindcss -i ./src/styles.css -o ./public/css/styles.css --watch",
+    "dev:server": "nodemon server.js",
+    "dev": "concurrently \"npm run dev:css\" \"npm run dev:server\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "autoprefixer": "^10.4.20",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-ejs-layouts": "^2.5.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.1.9"
+  }
+}

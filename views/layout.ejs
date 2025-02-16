@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= typeof title !== 'undefined' ? title + ' - Admin Dashboard' : 'Admin Dashboard' %></title>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <link href="/css/styles.css" rel="stylesheet">
+    <%- defineContent('styles') %>
+</head>
+<body class="h-full">
+    <div>
+        <!-- Include mobile sidebar partial -->
+        <%- include('partials/mobile-sidebar', { currentPage: typeof currentPage !== 'undefined' ? currentPage : '' }) %>
+
+        <!-- Include desktop sidebar partial -->
+        <%- include('partials/desktop-sidebar', { currentPage: typeof currentPage !== 'undefined' ? currentPage : '' }) %>
+
+        <!-- Mobile top bar -->
+        <%- include('partials/mobile-topbar', { title: typeof title !== 'undefined' ? title : 'Dashboard' }) %>
+
+        <!-- Main content -->
+        <main class="py-10 lg:pl-72">
+            <div class="px-4 sm:px-6 lg:px-8">
+                <%- body %>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Toggle mobile menu
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.querySelector('[data-mobile-menu-button]');
+            const mobileMenu = document.querySelector('[data-mobile-menu]');
+            const mobileMenuOverlay = document.querySelector('[data-mobile-menu-overlay]');
+            const mobileMenuCloseButton = document.querySelector('[data-mobile-menu-close]');
+
+            function toggleMobileMenu() {
+                const isHidden = mobileMenu.classList.contains('hidden');
+                mobileMenu.classList.toggle('hidden', !isHidden);
+                mobileMenuOverlay.classList.toggle('hidden', !isHidden);
+            }
+
+            mobileMenuButton?.addEventListener('click', toggleMobileMenu);
+            mobileMenuCloseButton?.addEventListener('click', toggleMobileMenu);
+            mobileMenuOverlay?.addEventListener('click', toggleMobileMenu);
+        });
+    </script>
+    <%- defineContent('scripts') %>
+</body>
+</html>

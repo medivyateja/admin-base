@@ -1,0 +1,57 @@
+<!-- Dashboard content -->
+<div class="grid gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- Stats cards -->
+      <div class="bg-white shadow-sm rounded-lg p-6">
+          <h3 class="text-sm font-medium text-gray-500">Total Users</h3>
+          <p class="mt-2 text-3xl font-semibold text-gray-900">12,345</p>
+          <p class="mt-2 text-sm text-green-600">↑ 12% from last month</p>
+      </div>
+      
+      <div class="bg-white shadow-sm rounded-lg p-6">
+          <h3 class="text-sm font-medium text-gray-500">Active Sessions</h3>
+          <p class="mt-2 text-3xl font-semibold text-gray-900">2,876</p>
+          <p class="mt-2 text-sm text-green-600">↑ 8% from last hour</p>
+      </div>
+      
+      <div class="bg-white shadow-sm rounded-lg p-6">
+          <h3 class="text-sm font-medium text-gray-500">Messages Sent</h3>
+          <p class="mt-2 text-3xl font-semibold text-gray-900">45,678</p>
+          <p class="mt-2 text-sm text-red-600">↓ 3% from yesterday</p>
+      </div>
+      
+      <div class="bg-white shadow-sm rounded-lg p-6">
+          <h3 class="text-sm font-medium text-gray-500">Response Time</h3>
+          <p class="mt-2 text-3xl font-semibold text-gray-900">1.2s</p>
+          <p class="mt-2 text-sm text-green-600">↑ 15% faster than avg</p>
+      </div>
+  </div>
+
+  <!-- Main content area -->
+  <div class="bg-white shadow-sm rounded-lg p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+      <div class="divide-y divide-gray-200">
+          <div class="py-4">
+              <h4 class="text-sm font-medium text-gray-900">System Update Completed</h4>
+              <p class="mt-1 text-sm text-gray-600">All systems have been updated to the latest version.</p>
+          </div>
+          <div class="py-4">
+              <h4 class="text-sm font-medium text-gray-900">New User Registration Peak</h4>
+              <p class="mt-1 text-sm text-gray-600">Detected increased signup activity in the last hour.</p>
+          </div>
+          <div class="py-4">
+              <h4 class="text-sm font-medium text-gray-900">Database Backup</h4>
+              <p class="mt-1 text-sm text-gray-600">Scheduled backup completed successfully.</p>
+          </div>
+      </div>
+  </div>
+</div>
+
+<%- contentFor('styles') %>
+<!-- Add any page-specific styles here -->
+
+<%- contentFor('scripts') %>
+<!-- Add any page-specific scripts here -->
+<script>
+  console.log('Dashboard page loaded');
+</script>
