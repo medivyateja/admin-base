@@ -2,6 +2,9 @@ const express = require('express');
 const path = require('path');
 const expressLayouts = require('express-ejs-layouts');
 const routes = require('./routes');
+const telegramRoutes = require('./routes/telegram');
+const telegramService = require('./services/telegram');
+require('dotenv').config();
 
 // Initialize express app
 const app = express();
@@ -22,8 +25,29 @@ app.set('layout extractStyles', true);
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Initialize Telegram service
+(async () => {
+    try {
+        await telegramService.initialize();
+        await telegramService.startListening();
+        console.log('Telegram service initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize Telegram service:', error);
+        process.exit(1);
+    }
+})();
+
 // Use routes
 app.use('/', routes);
+app.use('/api/telegram', telegramRoutes);
+
+// Create data directory for Telegram messages
+const dataDir = path.join(__dirname, 'public', 'data', 'users');
+const fs = require('fs');
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    console.log('Created data directory for Telegram messages');
+}
 
 // 404 Error Handler
 app.use((req, res) => {
