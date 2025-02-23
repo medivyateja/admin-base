@@ -1,4 +1,3 @@
-// services/telegram.js
 const { Api, TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 const { NewMessage } = require('telegram/events');
@@ -9,62 +8,126 @@ require('dotenv').config();
 
 class TelegramService {
     constructor() {
-        const savedSession = process.env.TELEGRAM_SESSION || '';
         this.client = null;
-        this.session = new StringSession(savedSession);
+        this.session = null;
         this.processedMessages = new Set();
-        this.userEntities = new Map(); // Cache for user entities
+        this.userEntities = new Map();
+        this.isInitialized = false;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
     }
 
     async initialize() {
         try {
+            if (this.isInitialized) {
+                console.log('Telegram service already initialized');
+                return true;
+            }
+
+            // Load and validate session
+            const savedSession = process.env.TELEGRAM_SESSION?.trim() || '';
+            this.session = new StringSession(savedSession);
+
+            // Initialize client with improved configuration
             this.client = new TelegramClient(
                 this.session,
                 parseInt(process.env.TELEGRAM_API_ID),
                 process.env.TELEGRAM_API_HASH,
-                { 
+                {
                     connectionRetries: 5,
-                    useWSS: true,
+                    useWSS: false, // Changed to false for better stability
                     deviceModel: "Desktop",
                     systemVersion: "Windows 10",
-                    appVersion: "1.0.0"
+                    appVersion: "1.0.0",
+                    timeout: 30000,
+                    autoReconnect: true
                 }
             );
 
             console.log('Connecting to Telegram...');
-            await this.client.connect();
-            
+
+            // Connect with retry logic
+            await this.connectWithRetry();
+
+            // Check authorization status
             if (!await this.client.checkAuthorization()) {
                 console.log('Authorization needed...');
-                await this.client.start({
-                    phoneNumber: async () => process.env.TELEGRAM_PHONE,
-                    password: async () => process.env.TELEGRAM_PASSWORD,
-                    phoneCode: async () => await input.text('Please enter the code you received: '),
-                    onError: (err) => console.error('Auth Error:', err),
-                });
+                await this.performAuthentication();
+            } else {
+                console.log('Successfully authorized using saved session');
             }
 
             // Initialize directories
             await this.initializeDirectories();
 
-            console.log('Connected successfully!');
-            const sessionString = this.client.session.save();
-            console.log('Session string (save this in .env as TELEGRAM_SESSION):', sessionString);
-            
+            // Start message listener
             await this.startListening();
+
+            this.isInitialized = true;
+            console.log('Telegram service fully initialized');
             return true;
+
         } catch (error) {
             console.error('Failed to initialize Telegram client:', error);
             throw error;
         }
     }
 
+    async connectWithRetry() {
+        while (this.reconnectAttempts < this.maxReconnectAttempts) {
+            try {
+                await this.client.connect();
+                this.reconnectAttempts = 0; // Reset counter on successful connection
+                return;
+            } catch (error) {
+                this.reconnectAttempts++;
+                console.error(`Connection attempt ${this.reconnectAttempts} failed:`, error);
+                
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    throw new Error('Max reconnection attempts reached');
+                }
+                
+                // Wait before retrying (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, this.reconnectAttempts)));
+            }
+        }
+    }
+
+    async performAuthentication() {
+        try {
+            await this.client.start({
+                phoneNumber: async () => process.env.TELEGRAM_PHONE,
+                password: async () => process.env.TELEGRAM_PASSWORD,
+                phoneCode: async () => await input.text('Please enter the code you received: '),
+                onError: (err) => {
+                    console.error('Authentication Error:', err);
+                    throw err;
+                },
+            });
+
+            // Save and display new session string
+            const newSession = this.client.session.save();
+            console.log('\nNEW SESSION STRING (update in .env):\n' + newSession);
+        } catch (error) {
+            console.error('Authentication failed:', error);
+            throw error;
+        }
+    }
+
     async initializeDirectories() {
-        // Create media and users directories
-        const mediaDir = path.join(__dirname, '../public/data/others');
-        const usersDir = path.join(__dirname, '../public/data/users');
-        await fs.mkdir(mediaDir, { recursive: true });
-        await fs.mkdir(usersDir, { recursive: true });
+        const dirs = [
+            path.join(__dirname, '../public/data/others'),
+            path.join(__dirname, '../public/data/users')
+        ];
+
+        for (const dir of dirs) {
+            try {
+                await fs.access(dir);
+            } catch {
+                await fs.mkdir(dir, { recursive: true });
+                console.log(`Created directory: ${dir}`);
+            }
+        }
     }
 
     async getUserDataPath(userId) {
@@ -91,20 +154,25 @@ class TelegramService {
 
     async saveUserData(userId, userData) {
         const filePath = await this.getUserDataPath(userId);
-        await fs.writeFile(filePath, JSON.stringify(userData, null, 2));
+        try {
+            await fs.writeFile(filePath, JSON.stringify(userData, null, 2));
+        } catch (error) {
+            console.error(`Error saving user data for ${userId}:`, error);
+            throw error;
+        }
     }
 
     async updateUserProfile(message) {
         try {
-            // First try getting user from message
             const userId = message.peerId.userId.toString();
             let userEntity;
 
+            // Try to get from cache first
             if (this.userEntities.has(userId)) {
                 userEntity = this.userEntities.get(userId);
             } else {
+                // Try different methods to get user info
                 try {
-                    // Try getting full user info
                     const sender = await message.getSender();
                     if (sender) {
                         this.userEntities.set(userId, sender);
@@ -112,9 +180,7 @@ class TelegramService {
                     }
                 } catch (error) {
                     console.error('Error getting sender:', error);
-                    
                     try {
-                        // Fallback to getting user through client
                         userEntity = await this.client.getEntity(userId);
                         if (userEntity) {
                             this.userEntities.set(userId, userEntity);
@@ -142,7 +208,6 @@ class TelegramService {
                 };
             }
 
-            // If all attempts fail, return basic profile
             return {
                 id: userId,
                 lastUpdated: new Date().toISOString()
@@ -164,16 +229,30 @@ class TelegramService {
             const fileName = `${Date.now()}_${message.id}${this.getMediaExtension(message.media)}`;
             const filePath = path.join(mediaDir, fileName);
 
-            // Download the media
-            const buffer = await this.client.downloadMedia(message.media);
-            await fs.writeFile(filePath, buffer);
-
-            // Return relative path for storage in JSON
-            return `/data/others/${fileName}`;
+            // Download with timeout and retry
+            const buffer = await this.downloadWithRetry(message.media);
+            if (buffer) {
+                await fs.writeFile(filePath, buffer);
+                return `/data/others/${fileName}`;
+            }
+            return null;
         } catch (error) {
             console.error('Error downloading media:', error);
             return null;
         }
+    }
+
+    async downloadWithRetry(media, maxAttempts = 3) {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return await this.client.downloadMedia(media);
+            } catch (error) {
+                console.error(`Download attempt ${attempt} failed:`, error);
+                if (attempt === maxAttempts) return null;
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+        return null;
     }
 
     getMediaExtension(media) {
@@ -202,7 +281,7 @@ class TelegramService {
 
             let userData = await this.loadUserData(senderId);
 
-            // Always try to update profile if it's incomplete
+            // Update profile if incomplete
             if (!userData.profile.firstName || !userData.profile.username) {
                 console.log('Updating user profile...');
                 userData.profile = await this.updateUserProfile(message);
@@ -214,7 +293,7 @@ class TelegramService {
                 return;
             }
 
-            // Handle media if present
+            // Handle media
             let mediaPath = null;
             if (message.media) {
                 mediaPath = await this.downloadMedia(message);
@@ -274,6 +353,33 @@ class TelegramService {
             throw error;
         }
     }
+
+    // Public methods for external use
+    async sendMessage(userId, message) {
+        try {
+            if (!this.client || !this.isInitialized) {
+                throw new Error('Telegram client not initialized');
+            }
+            return await this.client.sendMessage(userId, { message });
+        } catch (error) {
+            console.error('Error sending message:', error);
+            throw error;
+        }
+    }
+
+    async disconnect() {
+        try {
+            if (this.client) {
+                await this.client.disconnect();
+                this.isInitialized = false;
+                console.log('Telegram client disconnected');
+            }
+        } catch (error) {
+            console.error('Error disconnecting:', error);
+        }
+    }
 }
 
-module.exports = new TelegramService();
+// Create and export a single instance
+const telegramService = new TelegramService();
+module.exports = telegramService;
